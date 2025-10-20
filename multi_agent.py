@@ -166,7 +166,7 @@ def build_multi_agent_graph():
         review = state.get("review", "")
         try:
             review_dict = json.loads(review)
-            if review_dict['regenerate_code'].lower() == "yes":
+            if review_dict['regenerate_code'].lower() == "yes": # if the review code says to regenerate code
                 return "coder_node"
             return END
         except Exception as e:
