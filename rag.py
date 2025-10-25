@@ -1,10 +1,14 @@
 from dotenv import load_dotenv
 import os
+import ssl
+import certifi
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+from langchain_tavily import TavilySearch, TavilyCrawl, TavilyMap, TavilyExtract
 
 
 
@@ -34,6 +38,15 @@ import logging
 import json
 
 load_dotenv()
+
+ssl_context = ssl.create_default_context(cafile = certifi.where())
+os.environ["SSL_CERT_FILE"] = certifi.where()
+os.environ["REQUEST_CA_BUNDLE"] = certifi.where()
+
+tavily_extract = TavilyExtract()
+tavily_map = TavilyMap(max_depth = 5, max_breadth = 20, max_pages = 1000)
+tavily_crawl = TavilyCrawl()
+
 
 
 # ------------------------------------------------------------IMPORTS------------------------------------------------------------
@@ -82,7 +95,7 @@ def create_the_store(file_path: str):
 def similarity_search(query: str, k: int = 4):
     # Load the FAISS vector store
     vectorstore = FAISS.load_local(
-        "vector_index", embeddings, allow_dangerous_deserialization=True
+        "web_crawler", embeddings, allow_dangerous_deserialization=True
     )
     results = vectorstore.similarity_search(query, k=k)
     print(results)
@@ -101,7 +114,7 @@ def similarity_search(query: str, k: int = 4):
 def rag_app():
     print("RAG application started.")
     # create_the_store('star_wars.txt')
-    question = " WWhat makes Star Wars a “space opera” "
+    question = " what are the varius options to avoid crawling duplicate URLs ? "
     results = similarity_search(question , k=10)
     
     context = ""
@@ -129,9 +142,43 @@ def rag_app():
     messages = prompt.format_messages(context=context, question=question)
     response = llm.invoke(messages)
     print(response)
+def clean_contentf(text):
+    lines = text.splitlines()
+    cleaned = [
+        line.strip() for line in lines
+        if line.strip()
+        and not line.startswith("* [")
+        and not line.startswith("[My Account]")
+        and not "javascript:void" in line
+    ]
+    return "\n".join(cleaned)
+def crawl_the_site():
+    print("Hello world")
+    # results = tavily_crawl.invoke({"url": "https://www.starwars.com", "max_depth": 2})
+    # for r in results['results'][:1]:
+    #     print("🔗", r["url"])
+    #     print(r["raw_content"][:200])
+    #     print("-" * 80)
+    
+    urls = [
+        "https://www.starwars.com/news",
+    ]
 
+    clean_text = tavily_extract.run({"urls": ["https://blog.bytebytego.com/p/how-to-avoid-crawling-duplicate-urls"]})
+    raw_content = clean_text['results'][0]['raw_content']
+    clean_content = clean_contentf(raw_content)
+    docs = [Document(page_content=clean_content)]
+
+    splitter = RecursiveCharacterTextSplitter(chunk_size=200, chunk_overlap=50)
+    chunks = splitter.split_documents(docs)
+
+    # 5. Create FAISS vector store
+    vectorstore = FAISS.from_documents(chunks, embeddings)
+    vectorstore.save_local("web_crawler")
+    print("-" * 80)
 
 
 if __name__ == "__main__":
     print(os.environ.get("OPENAI_API_KEY"))
     rag_app()
+    # crawl_the_site()
