@@ -146,8 +146,6 @@ def reviewer_node(state: MultiAgentState):
         "review": output.content,
         "llm_calls": state.get("llm_calls", 0) + 1,
     }
-
-
     return updated_state
 
 
@@ -163,15 +161,13 @@ def build_multi_agent_graph():
 
     # Conditional edge for reviewer feedback
     def review_condition(state: MultiAgentState):
-        review = state.get("review", "")
-        try:
-            review_dict = json.loads(review)
-            if review_dict['regenerate_code'].lower() == "yes": # if the review code says to regenerate code
-                return "coder_node"
-            return END
-        except Exception as e:
-            print(e)
-            return "reviewer_node"
+        # JIRA-098 updated the check to parse review as JSON
+        review = state.get("review", {})
+        if not isinstance(review, dict):
+                return "reviewer_node"
+        if isinstance(review, dict) and review.get("regenerate_code", "").lower() == "yes":
+            return "coder_node"
+        return END
 
     graph.add_conditional_edges(
         "coder_node", lambda s: "reviewer_node", ["reviewer_node"]
