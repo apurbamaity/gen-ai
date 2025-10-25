@@ -163,11 +163,13 @@ def build_multi_agent_graph():
     def review_condition(state: MultiAgentState):
         # JIRA-098 updated the check to parse review as JSON
         review = state.get("review", {})
-        if not isinstance(review, dict):
-                return "reviewer_node"
-        if isinstance(review, dict) and review.get("regenerate_code", "").lower() == "yes":
-            return "coder_node"
-        return END
+        try:
+            if isinstance(review, dict) and review.get("regenerate_code", "").lower() == "yes":
+                return "coder_node"
+            return END
+        except Exception as e:
+            logging.error(f"Error parsing review JSON: {e}")
+            return "reviewer_node"
 
     graph.add_conditional_edges(
         "coder_node", lambda s: "reviewer_node", ["reviewer_node"]
